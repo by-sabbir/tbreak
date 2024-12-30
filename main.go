@@ -135,7 +135,7 @@ func (m model) View() string {
 			progressBar.WriteString(lipgloss.NewStyle().Foreground(creamColor).Render("○"))
 		}
 	}
-	progressBar.WriteString(" │\n")
+	progressBar.WriteString("│\n")
 	progressBar.WriteString("╰" + strings.Repeat("━", barWidth+2) + "╯")
 
 	// Status message based on progress
