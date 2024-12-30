@@ -13,40 +13,56 @@ import (
 )
 
 var (
-	// Colors
-	teaColor    = lipgloss.Color("#AF5E1F") // Tea brown
-	cupColor    = lipgloss.Color("#D6A278") // Cup color
-	steamColor  = lipgloss.Color("#B4C5BC") // Steam gray
-	borderColor = lipgloss.Color("#E6CCB2") // Light border
-	textColor   = lipgloss.Color("#9C6644") // Text brown
+	// Coffee-themed colors
+	coffeeColor = lipgloss.Color("#4A2C2A") // Dark coffee
+	creamColor  = lipgloss.Color("#C4A69D") // Coffee with cream
+	beanColor   = lipgloss.Color("#6F4E37") // Coffee bean brown
+	steamColor  = lipgloss.Color("#9B9B9B") // Steam gray
+	borderColor = lipgloss.Color("#8B4513") // Dark roast
+	accentColor = lipgloss.Color("#D2691E") // Light roast
+	foamColor   = lipgloss.Color("#E6BE8A") // Cappuccino foam
 
-	// Styles
+	// Base styles
+	baseStyle = lipgloss.NewStyle().
+			Align(lipgloss.Center)
+
 	titleStyle = lipgloss.NewStyle().
-			Foreground(teaColor).
+			Foreground(foamColor).
 			Bold(true).
-			Margin(1).
+			Padding(1).
 			Align(lipgloss.Center)
 
 	timeStyle = lipgloss.NewStyle().
-			Foreground(textColor).
-			Align(lipgloss.Center)
+			Foreground(creamColor).
+			Align(lipgloss.Center).
+			Padding(0, 1)
+
+	progressStyle = lipgloss.NewStyle().
+			Align(lipgloss.Center).
+			Padding(0, 2)
 
 	quitStyle = lipgloss.NewStyle().
-			Foreground(textColor).
+			Foreground(creamColor).
 			Align(lipgloss.Center).
 			Margin(1)
 
-	// Progress bar characters
-	steam = []string{"∿", "≋", "⋮", "⋰", "⋱"} // Steam animation frames
+	containerStyle = lipgloss.NewStyle().
+			Align(lipgloss.Center).
+			AlignVertical(lipgloss.Center)
+
+	// Coffee steam animation frames
+	steam = []string{"░", "▒", "▓", "▒", "░"}
 )
 
 type model struct {
 	progress    int
 	width       int
+	height      int
 	initialized bool
 	totalTime   time.Duration
 	elapsedTime time.Duration
 	steamFrame  int
+	taskName    string
 }
 
 func (m model) Init() tea.Cmd {
@@ -57,6 +73,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
+		m.height = msg.Height
 		m.initialized = true
 		return m, nil
 
@@ -79,63 +96,87 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	if !m.initialized {
-		return "Preparing your tea break...\n"
+		return "Brewing your coffee...\n"
 	}
 
 	// Create animated steam
 	steamAnim := lipgloss.NewStyle().Foreground(steamColor).Render(steam[m.steamFrame])
 
-	// Tea cup ASCII art with animated steam
-	teaCup := fmt.Sprintf(`
-    %s %s %s
-     )))
-    (((
-  +-----+
-  |     |
-        |   Tea Time!
-  +-----+
-`, steamAnim, steamAnim, steamAnim)
+	// Coffee cup ASCII art with proper alignment
+	coffeeCup := fmt.Sprintf(`
+     %s %s %s
+      )  )  )
+     (  (  (
+    .-========-.
+    | ________ |
+    | Break!!  |
+    | -------- |
+    '========='
 
+    %s`, steamAnim, steamAnim, steamAnim, m.taskName)
 	// Progress bar
-	barWidth := m.width - 20
+	barWidth := m.width/2 - 10 // Adjusted for better centering
 	if barWidth < 10 {
 		barWidth = 10
 	}
 
-	// Stylized progress bar
+	// Stylized progress bar with coffee beans
 	var progressBar strings.Builder
-	progressBar.WriteString("╭" + strings.Repeat("━", barWidth+2) + "╮\n│ ")
+	progressBar.WriteString("╭" + strings.Repeat("━", barWidth+2) + "╮\n")
+	progressBar.WriteString("│ ")
 
 	cupPosition := int(float64(barWidth) * float64(m.progress) / 100.0)
 	for i := 0; i < barWidth; i++ {
 		if i == cupPosition {
-			progressBar.WriteString(lipgloss.NewStyle().Foreground(cupColor).Render("☕"))
+			progressBar.WriteString(lipgloss.NewStyle().Foreground(accentColor).Render("☕"))
 		} else if i < cupPosition {
-			progressBar.WriteString(lipgloss.NewStyle().Foreground(teaColor).Render("●"))
+			progressBar.WriteString(lipgloss.NewStyle().Foreground(beanColor).Render("♨"))
 		} else {
-			progressBar.WriteString(lipgloss.NewStyle().Foreground(steamColor).Render("○"))
+			progressBar.WriteString(lipgloss.NewStyle().Foreground(creamColor).Render("○"))
 		}
 	}
 	progressBar.WriteString(" │\n")
 	progressBar.WriteString("╰" + strings.Repeat("━", barWidth+2) + "╯")
 
-	// Combine all components
-	title := titleStyle.Render(teaCup)
-	progress := fmt.Sprintf("%d%%", m.progress)
+	// Status message based on progress
+	var status string
+	if m.progress < 33 {
+		status = "Grinding beans..."
+	} else if m.progress < 66 {
+		status = "Brewing..."
+	} else {
+		status = "Almost ready!"
+	}
+
+	// Style and center all components
+	title := titleStyle.Render(coffeeCup)
+	progress := progressStyle.Render(fmt.Sprintf("%d%%", m.progress))
+	progressBarStr := progressBar.String() // Removed extra styling
 	timeInfo := timeStyle.Render(fmt.Sprintf(
-		"Steeping time: %s / %s",
+		"%s\nBrew time: %s / %s",
+		status,
 		m.elapsedTime.Truncate(time.Second).String(),
 		m.totalTime.String(),
 	))
-	quit := quitStyle.Render("Press 'q' to cancel your tea break")
+	quit := quitStyle.Render("Press 'q' to cancel your coffee break")
 
-	return lipgloss.JoinVertical(
+	// Combine all elements with vertical centering
+	content := lipgloss.JoinVertical(
 		lipgloss.Center,
 		title,
 		progress,
-		progressBar.String(),
+		progressBarStr,
 		timeInfo,
 		quit,
+	)
+
+	// Center everything in the terminal
+	return lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		content,
 	)
 }
 
@@ -168,8 +209,8 @@ func parseDuration(arg string) (time.Duration, error) {
 
 func main() {
 	flag.Parse()
-	if flag.NArg() != 1 {
-		fmt.Println("Usage: go run main.go <duration> (e.g., '30s', '2m')")
+	if flag.NArg() < 1 || flag.NArg() > 2 {
+		fmt.Println("Usage: go run main.go <duration> <task_name> (e.g., '30s' 'Making Coffee')")
 		os.Exit(1)
 	}
 
@@ -179,8 +220,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	p := tea.NewProgram(model{totalTime: duration}, tea.WithAltScreen())
+	taskName := "Coffee Brewing"
+	if flag.NArg() == 2 {
+		taskName = flag.Arg(1)
+	}
+
+	p := tea.NewProgram(
+		model{totalTime: duration, taskName: taskName},
+		tea.WithAltScreen(),
+	)
+
 	if err := p.Start(); err != nil {
 		fmt.Printf("Error starting app: %v\n", err)
+		os.Exit(1)
 	}
 }
