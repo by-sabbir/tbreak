@@ -9,6 +9,35 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+)
+
+var (
+	// Colors
+	teaColor    = lipgloss.Color("#AF5E1F") // Tea brown
+	cupColor    = lipgloss.Color("#D6A278") // Cup color
+	steamColor  = lipgloss.Color("#B4C5BC") // Steam gray
+	borderColor = lipgloss.Color("#E6CCB2") // Light border
+	textColor   = lipgloss.Color("#9C6644") // Text brown
+
+	// Styles
+	titleStyle = lipgloss.NewStyle().
+			Foreground(teaColor).
+			Bold(true).
+			Margin(1).
+			Align(lipgloss.Center)
+
+	timeStyle = lipgloss.NewStyle().
+			Foreground(textColor).
+			Align(lipgloss.Center)
+
+	quitStyle = lipgloss.NewStyle().
+			Foreground(textColor).
+			Align(lipgloss.Center).
+			Margin(1)
+
+	// Progress bar characters
+	steam = []string{"∿", "≋", "⋮", "⋰", "⋱"} // Steam animation frames
 )
 
 type model struct {
@@ -17,6 +46,7 @@ type model struct {
 	initialized bool
 	totalTime   time.Duration
 	elapsedTime time.Duration
+	steamFrame  int
 }
 
 func (m model) Init() tea.Cmd {
@@ -33,6 +63,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.elapsedTime += time.Second / 10
 		m.progress = int((float64(m.elapsedTime) / float64(m.totalTime)) * 100)
+		m.steamFrame = (m.steamFrame + 1) % len(steam)
 		if m.elapsedTime >= m.totalTime {
 			return m, tea.Quit
 		}
@@ -48,27 +79,63 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	if !m.initialized {
-		return "Initializing...\n"
+		return "Preparing your tea break...\n"
 	}
 
-	barWidth := m.width - 20 // Adjust for padding and labels
+	// Create animated steam
+	steamAnim := lipgloss.NewStyle().Foreground(steamColor).Render(steam[m.steamFrame])
+
+	// Tea cup ASCII art with animated steam
+	teaCup := fmt.Sprintf(`
+    %s %s %s
+     )))
+    (((
+  +-----+
+  |     |
+        |   Tea Time!
+  +-----+
+`, steamAnim, steamAnim, steamAnim)
+
+	// Progress bar
+	barWidth := m.width - 20
 	if barWidth < 10 {
-		barWidth = 10 // Minimum width for the progress bar
+		barWidth = 10
 	}
 
-	filledWidth := m.progress * barWidth / 100
-	emptyWidth := barWidth - filledWidth
+	// Stylized progress bar
+	var progressBar strings.Builder
+	progressBar.WriteString("╭" + strings.Repeat("━", barWidth+2) + "╮\n│ ")
 
-	filled := strings.Repeat("█", filledWidth)
-	empty := strings.Repeat(" ", emptyWidth)
+	cupPosition := int(float64(barWidth) * float64(m.progress) / 100.0)
+	for i := 0; i < barWidth; i++ {
+		if i == cupPosition {
+			progressBar.WriteString(lipgloss.NewStyle().Foreground(cupColor).Render("☕"))
+		} else if i < cupPosition {
+			progressBar.WriteString(lipgloss.NewStyle().Foreground(teaColor).Render("●"))
+		} else {
+			progressBar.WriteString(lipgloss.NewStyle().Foreground(steamColor).Render("○"))
+		}
+	}
+	progressBar.WriteString(" │\n")
+	progressBar.WriteString("╰" + strings.Repeat("━", barWidth+2) + "╯")
 
-	bar := fmt.Sprintf("[%s%s]", filled, empty)
-	return fmt.Sprintf(
-		"Progress: %d%% %s\nElapsed: %s / %s\nPress 'q' to quit.",
-		m.progress,
-		bar,
+	// Combine all components
+	title := titleStyle.Render(teaCup)
+	progress := fmt.Sprintf("%d%%", m.progress)
+	timeInfo := timeStyle.Render(fmt.Sprintf(
+		"Steeping time: %s / %s",
 		m.elapsedTime.Truncate(time.Second).String(),
 		m.totalTime.String(),
+	))
+	quit := quitStyle.Render("Press 'q' to cancel your tea break")
+
+	return lipgloss.JoinVertical(
+		lipgloss.Center,
+		title,
+		progress,
+		progressBar.String(),
+		timeInfo,
+		quit,
 	)
 }
 
